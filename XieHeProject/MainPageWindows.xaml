@@ -1,0 +1,12 @@
+﻿<Window x:Class="XieHeProject.MainPageWindows"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        
+        Title="MainPageWindows" Height="412.136" Width="616.02">
+    <Grid>
+        <Button Content="视频录制" Name="VideoRecordButton" Click="VideoRecordButton_Click" HorizontalAlignment="Left" Margin="102,51,0,0" VerticalAlignment="Top" Width="401" Height="45"/>
+        <Button Content="运动功能评分" Name="SorceButton" Click="SorceButton_Click"  HorizontalAlignment="Left" Margin="102,161,0,0" VerticalAlignment="Top" Width="401" Height="48"/>
+        <Button Content="步态参数计算" Name="GitParamsButton" Click="GitParamsButton_Click"  HorizontalAlignment="Left" Margin="102,261,0,0" VerticalAlignment="Top" Width="401" Height="54"/>
+
+    </Grid>
+</Window>

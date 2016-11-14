@@ -1,0 +1,668 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+//using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Navigation;
+using System.Windows.Shapes;
+using System.ComponentModel;
+using Microsoft.Kinect;
+using Microsoft.Kinect.Tools;
+using System.IO;
+using System.Windows.Forms;
+using System.Threading;
+using System.Net.Sockets;
+using System.Net;
+using System.Runtime.InteropServices;
+using System.Data;
+using System.Drawing;
+
+
+
+
+
+
+
+namespace XieHeProject
+{
+    /// <summary>
+    /// MainWindow.xaml 的交互逻辑
+    /// </summary>
+    /// 
+
+    public partial class MainWindow : Window,INotifyPropertyChanged
+    {
+
+        //用于找窗口句柄
+        [DllImport("user32.dll", EntryPoint = "FindWindow", SetLastError = true)]
+        private static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
+        [DllImport("user32.dll", EntryPoint = "FindWindowEx", SetLastError = true)]
+        private static extern IntPtr FindWindowEx(IntPtr hwndParent, uint hwndChildAfter, string lpszClass, string lpszWindow);
+        [DllImport("user32.dll", EntryPoint = "SendMessage", SetLastError = true, CharSet = CharSet.Auto)]
+        private static extern int SendMessage(IntPtr hwnd, uint wMsg, int wParam, int lParam);
+        [DllImport("user32.dll", EntryPoint = "SetForegroundWindow", SetLastError = true)]
+        private static extern void SetForegroundWindow(IntPtr hwnd);
+
+        //手的尺寸
+        private const double HandSize = 80;
+
+        //骨骼的厚度
+        private const double JointThickness = 20;
+
+        //摄像机边缘的厚度，用于提示是否碰到了摄像机边缘
+        private const double ClipBoundsThickness = 10;
+
+        //摄像空间轴
+        private const float InferredZPositionClamp = 0.1f;
+
+        
+        //表示手状态的刷子
+        private readonly System.Windows.Media.Brush handClosedBrush = new SolidColorBrush(System.Windows.Media.Color.FromArgb(128, 255, 0, 0));
+        private readonly System.Windows.Media.Brush handOpenBrush = new SolidColorBrush(System.Windows.Media.Color.FromArgb(128, 0, 255, 0));
+        private readonly System.Windows.Media.Brush handLassoBrush = new SolidColorBrush(System.Windows.Media.Color.FromArgb(128, 0, 0, 255));
+
+        //画骨骼的刷子
+        private readonly System.Windows.Media.Brush trackedJointBrush = new SolidColorBrush(System.Windows.Media.Color.FromArgb(255, 68, 192, 68));
+        private readonly System.Windows.Media.Brush inferredJointBrush = System.Windows.Media.Brushes.Yellow;
+
+        //画骨骼的笔
+        private readonly System.Windows.Media.Pen inferredBonePen = new System.Windows.Media.Pen(System.Windows.Media.Brushes.Gray, 1);
+
+        //单个绘图进行运算的绘图集合
+        private DrawingGroup drawingGroup;
+
+        //绘画出来的图像
+        private DrawingImage imageSource = null;
+
+        //彩色图图像
+        private WriteableBitmap colorBitmap = null;
+        
+        //Kinect传感器
+        private KinectSensor kinectSensor = null;
+
+        //坐标转换
+        private CoordinateMapper coordinateMapper = null;
+
+
+        //身体Reader
+        private BodyFrameReader bodyFrameReader = null;
+
+        //彩色图Reader
+        private ColorFrameReader colorFrameReader = null;
+
+        //一共6人的身体
+        private Body[] bodies = null;
+
+        //人体的骨额
+        private List<Tuple<JointType, JointType>> bones;
+
+        //人体两脚6个点
+        private List<JointType> foots;
+
+        //图像的宽度
+        private int displayWidth;
+
+        //图像的高度
+        private int displayHeight;
+
+        //画身体的笔
+        private List<System.Windows.Media.Pen> bodyColors;
+
+        //获取彩色图像
+        public ImageSource ColorImageSource
+        {
+            get
+            {
+                return this.colorBitmap;
+            }
+            
+        }
+
+        //获取骨骼图像
+        public ImageSource ImageSource
+        {
+            get
+            {
+                return this.imageSource;
+            }
+            set
+            {
+                this.imageSource = (DrawingImage)value;
+                if(this.PropertyChanged!=null)
+                {
+                    this.PropertyChanged.Invoke(this, new PropertyChangedEventArgs("ImageSource"));
+                }
+            }
+        }
+
+        //打开文件对话框
+        OpenFileDialog openFile;
+
+        //保存文件对话框
+        SaveFileDialog saveFile;
+
+        //事件绑定
+        public event PropertyChangedEventHandler PropertyChanged;
+
+       
+        //手机端连接,与Kinect录像
+        static PhoneConnection pConnection=new PhoneConnection();
+
+       //封装的彩色图视频录制类
+        private SharpAvi AviWrite = null;
+
+       
+        public MainWindow()
+        {
+            //取得传感器
+            this.kinectSensor = KinectSensor.GetDefault();
+
+            //取得坐标转换器
+            this.coordinateMapper = this.kinectSensor.CoordinateMapper;
+
+            //获取彩色图像信息
+            FrameDescription colorFrameDescription = this.kinectSensor.ColorFrameSource.CreateFrameDescription(ColorImageFormat.Bgra);
+
+            //打开身体Reader
+            this.bodyFrameReader = this.kinectSensor.BodyFrameSource.OpenReader();
+
+            //打开彩色图Reader
+            this.colorFrameReader = this.kinectSensor.ColorFrameSource.OpenReader();
+
+            //获得骨骼空间坐标
+            this.displayWidth = colorFrameDescription.Width;
+            this.displayHeight = colorFrameDescription.Height;
+
+            //元组链表作为骨骼
+            this.bones = new List<Tuple<JointType, JointType>>();
+
+            // 躯干
+            this.bones.Add(new Tuple<JointType, JointType>(JointType.Head, JointType.Neck));
+            this.bones.Add(new Tuple<JointType, JointType>(JointType.Neck, JointType.SpineShoulder));
+            this.bones.Add(new Tuple<JointType, JointType>(JointType.SpineShoulder, JointType.SpineMid));
+            this.bones.Add(new Tuple<JointType, JointType>(JointType.SpineMid, JointType.SpineBase));
+            this.bones.Add(new Tuple<JointType, JointType>(JointType.SpineShoulder, JointType.ShoulderRight));
+            this.bones.Add(new Tuple<JointType, JointType>(JointType.SpineShoulder, JointType.ShoulderLeft));
+            this.bones.Add(new Tuple<JointType, JointType>(JointType.SpineBase, JointType.HipRight));
+            this.bones.Add(new Tuple<JointType, JointType>(JointType.SpineBase, JointType.HipLeft));
+
+            // 右臂
+            this.bones.Add(new Tuple<JointType, JointType>(JointType.ShoulderRight, JointType.ElbowRight));
+            this.bones.Add(new Tuple<JointType, JointType>(JointType.ElbowRight, JointType.WristRight));
+            this.bones.Add(new Tuple<JointType, JointType>(JointType.WristRight, JointType.HandRight));
+            this.bones.Add(new Tuple<JointType, JointType>(JointType.HandRight, JointType.HandTipRight));
+            this.bones.Add(new Tuple<JointType, JointType>(JointType.WristRight, JointType.ThumbRight));
+
+            // 左臂
+            this.bones.Add(new Tuple<JointType, JointType>(JointType.ShoulderLeft, JointType.ElbowLeft));
+            this.bones.Add(new Tuple<JointType, JointType>(JointType.ElbowLeft, JointType.WristLeft));
+            this.bones.Add(new Tuple<JointType, JointType>(JointType.WristLeft, JointType.HandLeft));
+            this.bones.Add(new Tuple<JointType, JointType>(JointType.HandLeft, JointType.HandTipLeft));
+            this.bones.Add(new Tuple<JointType, JointType>(JointType.WristLeft, JointType.ThumbLeft));
+
+            // 右腿
+            this.bones.Add(new Tuple<JointType, JointType>(JointType.HipRight, JointType.KneeRight));
+            this.bones.Add(new Tuple<JointType, JointType>(JointType.KneeRight, JointType.AnkleRight));
+            this.bones.Add(new Tuple<JointType, JointType>(JointType.AnkleRight, JointType.FootRight));
+
+            // 左腿
+            this.bones.Add(new Tuple<JointType, JointType>(JointType.HipLeft, JointType.KneeLeft));
+            this.bones.Add(new Tuple<JointType, JointType>(JointType.KneeLeft, JointType.AnkleLeft));
+            this.bones.Add(new Tuple<JointType, JointType>(JointType.AnkleLeft, JointType.FootLeft));
+
+            //添加两脚6个点
+            this.foots = new List<JointType>();
+            this.foots.Add(JointType.KneeRight);
+            this.foots.Add(JointType.KneeLeft);
+            this.foots.Add(JointType.AnkleRight);
+            this.foots.Add(JointType.AnkleLeft);
+            this.foots.Add(JointType.FootRight);
+            this.foots.Add(JointType.FootLeft);
+
+            // 每个人身体的颜色
+            this.bodyColors = new List<System.Windows.Media.Pen>();
+
+            this.bodyColors.Add(new System.Windows.Media.Pen(System.Windows.Media.Brushes.Red, 15));
+            this.bodyColors.Add(new System.Windows.Media.Pen(System.Windows.Media.Brushes.Orange, 15));
+            this.bodyColors.Add(new System.Windows.Media.Pen(System.Windows.Media.Brushes.Green, 15));
+            this.bodyColors.Add(new System.Windows.Media.Pen(System.Windows.Media.Brushes.Blue, 15));
+            this.bodyColors.Add(new System.Windows.Media.Pen(System.Windows.Media.Brushes.Indigo, 15));
+            this.bodyColors.Add(new System.Windows.Media.Pen(System.Windows.Media.Brushes.Violet, 15));
+
+            //打开传感器
+            this.kinectSensor.Open();
+
+            //创建绘图和绑定窗体
+            this.drawingGroup = new DrawingGroup();
+            //this.imageSource = new DrawingImage(this.drawingGroup);
+            this.DataContext = this;
+
+            //创建位图
+            this.colorBitmap = new WriteableBitmap(colorFrameDescription.Width, colorFrameDescription.Height, 96.0, 96.0, PixelFormats.Bgr32, null);
+
+            //创建打开文件对话框
+            openFile = new OpenFileDialog();
+
+           //创建保存文件对话框
+            saveFile = new SaveFileDialog();
+
+            //playbackButton = new System.Windows.Controls.Button();
+            //playbackButton = this.playBackButton;
+
+            //startRecordButton = new System.Windows.Controls.Button();
+            //startrecordButton=this.startRecordButton;
+            
+            InitializeComponent();
+            
+          }
+
+        private void Window_Loaded(object sender, RoutedEventArgs e)
+        {
+            //添加身体Reader事件
+            if (this.bodyFrameReader != null)
+            {
+                this.bodyFrameReader.FrameArrived += bodyFrameReader_FrameArrived;
+            }
+
+            //添加彩色图Reader事件
+            if (this.colorFrameReader != null)
+            {
+                this.colorFrameReader.FrameArrived += colorFrameReader_FrameArrived;
+            }
+
+            AviWrite = new SharpAvi();
+
+        }
+
+        //彩色Reader回调函数
+        void colorFrameReader_FrameArrived(object sender, ColorFrameArrivedEventArgs e)
+        {
+            using (ColorFrame colorFrame = e.FrameReference.AcquireFrame())
+            {
+                if (colorFrame != null)
+                {
+                    //获取彩色坐标信息
+                    FrameDescription colorFrameDescription = colorFrame.FrameDescription;
+
+                    //绘制彩色图
+                    using (KinectBuffer colorBuffer = colorFrame.LockRawImageBuffer())
+                    {
+                        this.colorBitmap.Lock();
+                        
+                        //分析数据将新的彩色图数据写入位图
+                        if ((colorFrameDescription.Width == this.colorBitmap.PixelWidth) && (colorFrameDescription.Height == this.colorBitmap.PixelHeight))
+                        {
+                           
+                            if (AviWrite.IsCreateRecord)
+                            {
+                                AviWrite.InitRecord(pConnection.PeopleDir + "\\" + pConnection.CurrentProject + ".avi");
+                            }
+                            if (AviWrite.IsRecording)
+                            {
+                                var frameData = new byte[1920 * 1080 * 4];
+                                colorFrame.CopyConvertedFrameDataToArray(frameData, ColorImageFormat.Bgra);
+                                AviWrite.Recording(frameData);
+                            }
+                            colorFrame.CopyConvertedFrameDataToIntPtr(
+                                this.colorBitmap.BackBuffer,
+                                (uint)(colorFrameDescription.Width * colorFrameDescription.Height * 4),
+                                ColorImageFormat.Bgra);
+                            
+                            this.colorBitmap.AddDirtyRect(new Int32Rect(0, 0, this.colorBitmap.PixelWidth, this.colorBitmap.PixelHeight));
+                        }
+
+                        this.colorBitmap.Unlock();
+                    }
+                }
+            }
+        }
+
+        //身体Reader回调函数
+        void bodyFrameReader_FrameArrived(object sender, BodyFrameArrivedEventArgs e)
+        {
+            //判断是否检测到身体数据
+            bool dataReceived = false;
+
+            using (BodyFrame bodyFrame = e.FrameReference.AcquireFrame())
+            {
+                if (bodyFrame != null)
+                {
+                    if (this.bodies == null)
+                    {
+                        this.bodies = new Body[bodyFrame.BodyCount];
+                    }
+
+                    //判断是否有增加的人数
+                    bodyFrame.GetAndRefreshBodyData(this.bodies);
+                    dataReceived = true;
+                }
+            }
+
+            if (dataReceived)
+            {
+                using (DrawingContext dc = this.drawingGroup.Open())
+                {
+                    // Draw a transparent background to set the render size
+                    dc.DrawRectangle(System.Windows.Media.Brushes.Transparent, null, new Rect(0.0, 0.0, this.displayWidth, this.displayHeight));
+
+                    int penIndex = 0;
+                    foreach (Body body in this.bodies)
+                    {
+                        System.Windows.Media.Pen drawPen = this.bodyColors[penIndex++];
+
+                        if (body.IsTracked)
+                        {
+                            this.DrawClippedEdges(body, dc);
+
+                            IReadOnlyDictionary<JointType, Joint> joints = body.Joints;
+
+                            // convert the joint points to depth (display) space
+                            Dictionary<JointType, System.Windows.Point> jointPoints = new Dictionary<JointType, System.Windows.Point>();
+
+                            
+                            
+                            foreach (JointType jointType in joints.Keys)
+                            {
+                                // sometimes the depth(Z) of an inferred joint may show as negative
+                                // clamp down to 0.1f to prevent coordinatemapper from returning (-Infinity, -Infinity)
+                                CameraSpacePoint position = joints[jointType].Position;
+                                if (position.Z < 0)
+                                {
+                                    position.Z = InferredZPositionClamp;
+                                }
+
+                                ColorSpacePoint colorSpacePoint = this.coordinateMapper.MapCameraPointToColorSpace(position);
+                                jointPoints[jointType] = new System.Windows.Point(colorSpacePoint.X,colorSpacePoint.Y);
+                                //DepthSpacePoint depthSpacePoint = this.coordinateMapper.MapCameraPointToDepthSpace(position);
+                                //jointPoints[jointType] = new Point(depthSpacePoint.X, depthSpacePoint.Y);
+                            }
+                            
+                            this.DrawBody(joints, jointPoints, dc, drawPen);
+                            this.DrawHand(body.HandLeftState, jointPoints[JointType.HandLeft], dc);
+                            this.DrawHand(body.HandRightState, jointPoints[JointType.HandRight], dc);
+                        }
+                    }
+
+                    // prevent drawing outside of our render area
+                    this.drawingGroup.ClipGeometry = new RectangleGeometry(new Rect(0.0, 0.0, this.displayWidth, this.displayHeight));
+                }
+            }
+        }
+
+        private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+        {
+            //关闭Reader和传感器
+            if(this.bodyFrameReader!=null)
+            {
+                this.bodyFrameReader.Dispose();
+                this.bodyFrameReader = null;
+            }
+            if (this.colorFrameReader != null)
+            {
+                this.colorFrameReader.Dispose();
+                this.colorFrameReader = null;
+            }
+            if (this.kinectSensor != null)
+            {
+                this.kinectSensor.Close();
+                this.kinectSensor = null;
+            }
+            if (this.AviWrite != null)
+            {
+                this.AviWrite = null;
+            }
+        }
+
+        //绘制身体
+        private void DrawBody(IReadOnlyDictionary<JointType, Joint> joints, IDictionary<JointType, System.Windows.Point> jointPoints, DrawingContext drawingContext, System.Windows.Media.Pen drawingPen)
+        {
+            // Draw the bones
+            foreach (var bone in this.bones)
+            {
+                this.DrawBone(joints, jointPoints, bone.Item1, bone.Item2, drawingContext, drawingPen);
+            }
+
+            // Draw the joints
+            foreach (JointType jointType in joints.Keys)
+            {
+                System.Windows.Media.Brush drawBrush = null;
+
+                TrackingState trackingState = joints[jointType].TrackingState;
+
+                if (trackingState == TrackingState.Tracked)
+                {
+                    drawBrush = this.trackedJointBrush;
+                }
+                else if (trackingState == TrackingState.Inferred)
+                {
+                    drawBrush = this.inferredJointBrush;
+                }
+
+                if (drawBrush != null)
+                {
+                    drawingContext.DrawEllipse(drawBrush, null, jointPoints[jointType], JointThickness, JointThickness);
+                }
+            }
+        }
+
+
+        //绘制骨头
+        private void DrawBone(IReadOnlyDictionary<JointType, Joint> joints, IDictionary<JointType, System.Windows.Point> jointPoints, JointType jointType0, JointType jointType1, DrawingContext drawingContext, System.Windows.Media.Pen drawingPen)
+        {
+            Joint joint0 = joints[jointType0];
+            Joint joint1 = joints[jointType1];
+
+            // If we can't find either of these joints, exit
+            if (joint0.TrackingState == TrackingState.NotTracked ||
+                joint1.TrackingState == TrackingState.NotTracked)
+            {
+                return;
+            }
+
+            // We assume all drawn bones are inferred unless BOTH joints are tracked
+            System.Windows.Media.Pen drawPen = this.inferredBonePen;
+            if ((joint0.TrackingState == TrackingState.Tracked) && (joint1.TrackingState == TrackingState.Tracked))
+            {
+                drawPen = drawingPen;
+            }
+
+            drawingContext.DrawLine(drawPen, jointPoints[jointType0], jointPoints[jointType1]);
+        }
+
+        //绘制手的状态
+        private void DrawHand(HandState handState, System.Windows.Point handPosition, DrawingContext drawingContext)
+        {
+            switch (handState)
+            {
+                case HandState.Closed:
+                    drawingContext.DrawEllipse(this.handClosedBrush, null, handPosition, HandSize, HandSize);
+                    break;
+
+                case HandState.Open:
+                    drawingContext.DrawEllipse(this.handOpenBrush, null, handPosition, HandSize, HandSize);
+                    break;
+
+                case HandState.Lasso:
+                    drawingContext.DrawEllipse(this.handLassoBrush, null, handPosition, HandSize, HandSize);
+                    break;
+            }
+        }
+
+        //画摄像头边缘
+        private void DrawClippedEdges(Body body, DrawingContext drawingContext)
+        {
+            FrameEdges clippedEdges = body.ClippedEdges;
+
+            if (clippedEdges.HasFlag(FrameEdges.Bottom))
+            {
+                drawingContext.DrawRectangle(
+                    System.Windows.Media.Brushes.Red,
+                    null,
+                    new Rect(0, this.displayHeight - ClipBoundsThickness, this.displayWidth, ClipBoundsThickness));
+            }
+
+            if (clippedEdges.HasFlag(FrameEdges.Top))
+            {
+                drawingContext.DrawRectangle(
+                    System.Windows.Media.Brushes.Red,
+                    null,
+                    new Rect(0, 0, this.displayWidth, ClipBoundsThickness));
+            }
+
+            if (clippedEdges.HasFlag(FrameEdges.Left))
+            {
+                drawingContext.DrawRectangle(
+                    System.Windows.Media.Brushes.Red,
+                    null,
+                    new Rect(0, 0, ClipBoundsThickness, this.displayHeight));
+            }
+
+            if (clippedEdges.HasFlag(FrameEdges.Right))
+            {
+                drawingContext.DrawRectangle(
+                    System.Windows.Media.Brushes.Red,
+                    null,
+                    new Rect(this.displayWidth - ClipBoundsThickness, 0, ClipBoundsThickness, this.displayHeight));
+            }
+        }
+
+        //是否显示骨骼
+        private void ShowsSkeleton(object sender, RoutedEventArgs e)
+        {
+           
+            if ((bool)this.CheckBoxShow.IsChecked)
+            {
+                this.ImageSource = new DrawingImage(this.drawingGroup);
+                
+            }
+            else
+            {
+                this.ImageSource = null;
+             }
+        }
+
+       private void CheckBoxShow_Checked(object sender, RoutedEventArgs e)
+       {
+           
+       }
+
+        //回放
+        private void PlayBack_Click(object sender, RoutedEventArgs e)
+        {
+            /**
+            openFile.Filter = "Kinect录像文件(*.xef)|*.xef";
+            if (openFile.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+            {
+                
+                //线程休眠，载入文件
+                //Thread.Sleep(1000);
+
+                //开启其它线程播放文件
+                Thread t = new Thread(PlaybackClip);
+                t.Start(openFile.FileName);
+            }
+            //this.playBackButton.IsEnabled = true;
+             * */
+            Console.WriteLine(Environment.CurrentDirectory);
+            //System.Diagnostics.Process.Start(@"XieHeProject - 原来\XieHePlayer\XieHePlayer\bin\Debug\XieHePlayer.exe");
+            System.Diagnostics.Process.Start(@"..\..\..\..\XieHePlayer\XieHePlayer\bin\Debug\XieHePlayer.exe");
+        }
+
+        //回放录像的带一个参数的函数
+        public static void PlaybackClip(object filePath)
+        {
+            using (KStudioClient PlayClient = KStudio.CreateClient())
+            {
+                /*
+                if(playbackButton!=null)
+                    playbackButton.IsEnabled = false;
+                **/
+
+                PlayClient.ConnectToService();
+                using (KStudioPlayback playback = PlayClient.CreatePlayback((string)filePath))
+                {
+                    playback.LoopCount = 0;
+                    playback.Start();
+                    while (playback.State == KStudioPlaybackState.Playing)
+                    {
+                        //Thread.Sleep(500);
+                    }
+                    /*
+                    if (playback.State == KStudioPlaybackState.Error)
+                    {
+                       throw new InvalidOperationException("Error: Playback failed!");
+                    }**/
+                }
+                PlayClient.DisconnectFromService();
+                /*
+                if (playbackButton != null)
+                    playbackButton.IsEnabled = true;
+                **/
+                //System.Windows.Forms.MessageBox.Show("回放结束");
+            }
+        }
+
+        
+
+        private void Window_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            
+            if (Keyboard.IsKeyDown(Key.D1) && Keyboard.IsKeyDown(Key.LeftCtrl))
+            {
+                //System.Windows.Forms.MessageBox.Show("A");
+                //StartRecord_Click(sender, e);
+                Thread mTcpServerThread = new Thread(pConnection.StartRecordClip);
+                mTcpServerThread.IsBackground = true;
+                mTcpServerThread.Start(pConnection.PeopleDir+"\\"+pConnection.CurrentProject+".xef");
+                AviWrite.IsCreateRecord = true;
+                AviWrite.IsRecording = true;
+            }
+            else if (Keyboard.IsKeyDown(Key.D2) && Keyboard.IsKeyDown(Key.LeftCtrl))
+            {
+                
+                Thread mTcpServerThread = new Thread(pConnection.StopRecordClip);
+                mTcpServerThread.IsBackground = true;
+                mTcpServerThread.Start();
+                AviWrite.Stoping(); 
+                //pConnection.StopRecordClip();
+                //StopRecord_Click(sender,e);
+            }
+            else if (Keyboard.IsKeyDown(Key.D3) && Keyboard.IsKeyDown(Key.LeftCtrl))
+            {
+                Thread mTcpServerThread = new Thread(pConnection.dealCommand);
+                mTcpServerThread.IsBackground = true;
+                mTcpServerThread.Start();
+            }
+        }
+
+        private void CreatServerButton_Click(object sender, RoutedEventArgs e)
+        {
+            Thread mTcpServerThread = new Thread(pConnection.ReceiveCommand);
+            mTcpServerThread.IsBackground = true;
+            mTcpServerThread.Start();
+            this.CreatServerButton.IsEnabled = false;
+        }
+
+        private void SetDirButton_Click(object sender, RoutedEventArgs e)
+        {
+            pConnection.setStoreDir();
+           
+        }
+
+        private void ReActiveButton_Click(object sender, RoutedEventArgs e)
+        {
+            this.CreatServerButton.IsEnabled = true;
+        }
+
+        
+
+    }
+
+}

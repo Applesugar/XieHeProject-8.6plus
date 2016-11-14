@@ -1,0 +1,62 @@
+﻿<Window x:Class="XieHeProject.GaitParamWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+         Title="步态采集" Height="838.845" Width="1574.405"
+        Loaded="Window_Loaded"
+        Closing="Window_Closing" KeyDown="Window_KeyDown">
+    <Grid Margin="10 0 10 0" >
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition  />
+            <RowDefinition Height="Auto" MinHeight="200" />
+        </Grid.RowDefinitions>
+
+
+
+
+        <Viewbox Grid.Row="1" HorizontalAlignment="Center"   >
+            <Image Source="{Binding ColorImageSource}" Stretch="UniformToFill"/>
+        </Viewbox>
+        <Viewbox Grid.Row="1" HorizontalAlignment="Center"  >
+            <Image Source="{Binding ImageSource}" Stretch="UniformToFill" />
+        </Viewbox>
+        <Button Grid.Row="2" Content="载入xef文件"  x:Name="LoadButton" Click="LoadButton_Click"  HorizontalAlignment="Left" Margin="192,47,0,0"  VerticalAlignment="Top" Width="75" Height="49"/>
+        <TabControl HorizontalAlignment="Left" Height="200" Margin="683,0,0,0" Grid.Row="2" VerticalAlignment="Top" Width="500">
+            <TabItem  Header="步态">
+                <Grid Background="White">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="45*"/>
+                        <ColumnDefinition Width="8*"/>
+                        <ColumnDefinition Width="5*"/>
+                        <ColumnDefinition Width="436*"/>
+                    </Grid.ColumnDefinitions>
+                    <Label Content="步宽" Name="StepWidthLabel" HorizontalAlignment="Left" Margin="14,10,0,0" VerticalAlignment="Top" Grid.ColumnSpan="4" Width="113"/>
+                    <Label Content="左步高" Name="LeftStepHeightLabel" HorizontalAlignment="Left" Margin="14,35,0,0" VerticalAlignment="Top" RenderTransformOrigin="0.457,1.04" Grid.ColumnSpan="4" Width="99"/>
+                    <Label Content="左步长" Name="LeftStepLengthLabel" HorizontalAlignment="Left" Margin="14,86,0,0" VerticalAlignment="Top" RenderTransformOrigin="0.375,-0.2" Grid.ColumnSpan="4" Width="113"/>
+                    <Label Content="右步长" Name="RightStepLengthLabel" HorizontalAlignment="Left" Margin="14,108,0,0" VerticalAlignment="Top" Grid.ColumnSpan="4" Width="113"/>
+                    <Label Content="右步高" Name="RightStepHeightLabel" HorizontalAlignment="Left" Margin="14,61,0,0" VerticalAlignment="Top" Grid.ColumnSpan="4" Width="99"/>
+
+                    <Button Content="步态开始" Name="BuTaiStartButton" Click="BuTaiStartButton_Click" HorizontalAlignment="Left" Margin="189,94,0,0" VerticalAlignment="Top" Width="75" Grid.Column="3"/>
+                    <Button Content="步态结束" Name="BuTaiStopButton"  Click="BuTaiStopButton_Click" HorizontalAlignment="Left" Margin="189,138,0,0" VerticalAlignment="Top" Width="75" Grid.Column="3"/>
+                    <Label Content="三米步态切分开始时间" Name="SmBuTaiLabel" HorizontalAlignment="Left" Margin="14,138,0,0" VerticalAlignment="Top" RenderTransformOrigin="-0.475,0.44" Grid.ColumnSpan="4" Width="248"/>
+
+                </Grid>
+            </TabItem >
+            <TabItem Header="前三项">
+                <Grid Background="White">
+
+                </Grid>
+
+            </TabItem>
+
+
+
+        </TabControl>
+        <Button Content="载入步态时间" Name="LoadBuTaiButton" Click="LoadButton_Click_1" Visibility="Hidden" HorizontalAlignment="Left" Margin="372,47,0,0" Grid.Row="2" VerticalAlignment="Top" Width="75" Height="49"/>
+        <Button Content="跳转步态时间" Name="MoveToBuTaiTimeButton" Click="MoveToBuTaiTimeButton_Click" Visibility="Hidden"  HorizontalAlignment="Left" Margin="528,47,0,0" Grid.Row="2" VerticalAlignment="Top" Width="75" RenderTransformOrigin="0.36,2.263" Height="49"/>
+        <Label Content="病人ID" Name="BingRenLable" HorizontalAlignment="Left" Margin="192,114,0,0" Grid.Row="2" VerticalAlignment="Top" Height="34" Width="241" FontSize="16"/>
+        <TextBox Name="BingRenText" HorizontalAlignment="Left" Height="23" Margin="192,153,0,0" Grid.Row="2" TextWrapping="Wrap" VerticalAlignment="Top" Width="130"/>
+
+
+    </Grid>
+</Window>

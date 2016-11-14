@@ -1,0 +1,32 @@
+﻿<Window x:Class="XieHeProject.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="步态采集" Height="936.845" Width="918.955"
+        Loaded="Window_Loaded"
+        Closing="Window_Closing" KeyDown="Window_KeyDown"
+        >
+    <Grid Margin="10 0 10 0" >
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition />
+            <RowDefinition Height="Auto" MinHeight="49" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+
+
+
+        <Viewbox Grid.Row="1" HorizontalAlignment="Center"   >
+            <Image Source="{Binding ColorImageSource}" Stretch="UniformToFill" />
+        </Viewbox>
+        <Viewbox Grid.Row="1" HorizontalAlignment="Center"  >
+            <Image Source="{Binding ImageSource}" Stretch="UniformToFill" />
+        </Viewbox>
+        <CheckBox Grid.Row="2"  Content="显示骨骼"  Name="CheckBoxShow" HorizontalAlignment="Right" VerticalAlignment="Center" Height="20" Click="ShowsSkeleton" FontSize="16" Checked="CheckBoxShow_Checked" Margin="0,17,0,12" Width="84"/>
+        <Button Name="playBackButton" Content="回放" HorizontalAlignment="Left" Margin="276,0,0,0" Grid.Row="2" Width="76" RenderTransformOrigin="-0.107,0.421" Click="PlayBack_Click"/>
+        <Button Content="创建服务器" Name="CreatServerButton" Click="CreatServerButton_Click" HorizontalAlignment="Left" Margin="410,0,0,0" Grid.Row="2" VerticalAlignment="Top" Width="75" Height="49"/>
+        <Button Content="选择存储目录" Name="SetDirButton" Click="SetDirButton_Click" HorizontalAlignment="Left" Margin="118,0,0,0" Grid.Row="2" VerticalAlignment="Top" Width="75" Height="49"/>
+        <Button Content="连接失效后激活创建按钮" Name="ReActiveButton" Click="ReActiveButton_Click" HorizontalAlignment="Left" Margin="570,0,0,0" Grid.Row="2" VerticalAlignment="Top" Width="144" Height="49" RenderTransformOrigin="1.08,0.599"/>
+
+    </Grid>
+</Window>

@@ -1,0 +1,635 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Runtime.InteropServices;
+using System.Net.Sockets;
+using System.IO;
+using System.Windows;
+using Microsoft.Kinect.Tools;
+using System.Threading;
+
+namespace XieHeProject
+{
+
+
+    class PhoneConnection
+    {
+
+        [DllImport("user32.dll", EntryPoint = "FindWindow", SetLastError = true)]
+        private static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
+        [DllImport("user32.dll", EntryPoint = "FindWindowEx", SetLastError = true)]
+        private static extern IntPtr FindWindowEx(IntPtr hwndParent, uint hwndChildAfter, string lpszClass, string lpszWindow);
+        [DllImport("user32.dll", EntryPoint = "SendMessage", SetLastError = true, CharSet = CharSet.Auto)]
+        private static extern int SendMessage(IntPtr hwnd, uint wMsg, int wParam, int lParam);
+        [DllImport("user32.dll", EntryPoint = "SetForegroundWindow", SetLastError = true)]
+        private static extern void SetForegroundWindow(IntPtr hwnd);
+
+        //存放的根目录
+        private string rootDir = "C:";
+        
+        //病人ID号
+        private string peopleID = "";
+
+        //病人文件夹
+        private string peopleDir = "";
+
+        //当前项目名称
+        private string currentProject = "";
+
+        //服务端收到的指令
+        private int command = 0;
+
+        //收到数据
+        private string data = "";
+
+        //计时开始时间
+        private DateTime start;
+
+        //计时结束时间
+        private DateTime end;
+
+        //是否调出录像循环
+        private static int Flag = 0;
+        
+        //控制出错后是否改变Flag
+        private static int Flag1 = 0;
+
+        //控制创建服务器按键还原
+        public static int Flag2 = 1; 
+
+        //控制创建载入xef按键还原
+        public static int Flag3 = 1;
+
+        //当前回放
+        //回放Client
+        private KStudioClient playbackClient;
+
+        private KStudioPlayback playback;
+
+        public string PeopleDir
+        {
+            get
+            {
+                return peopleDir;
+            }
+        }
+
+        public string CurrentProject
+        {
+            get
+            {
+                return currentProject;
+            }
+        }
+
+        public string PeopleID
+        {
+            get
+            {
+                return peopleID;
+            }
+        }
+
+       
+        //是否录像
+        private Boolean isRecording = false;
+
+        //是否收到信息
+        private Boolean isReceivingMsg = false;
+
+        //信息的类型
+
+        private enum messsageType
+        {
+            START_COUNTING=100,
+            STOP_COUNTING=101,
+            START_RECORD=111,
+            STOP_RECORD=112,
+            PATIENT_ID=200
+
+
+        }
+
+        public PhoneConnection()
+        {
+            //ConnectplaybackClient();
+        }
+
+        //创立回放的连接
+        public void ConnectplaybackClient()
+        {
+            playbackClient = KStudio.CreateClient();
+            playbackClient.ConnectToService();
+        }
+
+        //断掉回放的连接
+        public void DisConnectplaybackClient()
+        {
+            playbackClient.DisconnectFromService();
+        }
+
+        //接收指令
+        public void ReceiveCommand()
+        {
+            Flag2 = 1;
+            int HOST_PORT = 8003;
+            TcpListener listener = null;
+            try
+            {
+                listener = new TcpListener(HOST_PORT);
+                listener.Start();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("连接失效，请重新连接" + "\n" + "错误为:" + ex.Message);
+                listener.Stop();
+                return;
+            }
+            
+
+            Console.Write("Waiting for connection...");
+            //AddItem(lst_Receive, "Waiting for connection...");
+            TcpClient client = listener.AcceptTcpClient();
+            Console.WriteLine("Connection accepted.");
+            //AddItem(lst_Receive, "Connection accepted.");
+
+
+            NetworkStream ns = client.GetStream();
+            isReceivingMsg = true;
+
+            while (true == isReceivingMsg)
+            {
+               
+                try
+                {
+                    byte[] bytes = new byte[1024];
+                    int bytesRead = ns.Read(bytes, 0, bytes.Length);
+                    String str = Encoding.UTF8.GetString(bytes, 0, bytesRead);
+                    Console.WriteLine(str);
+                    //AddItem(lst_Receive, str);
+
+                    //解析字符串，翻译成信息
+                    String[] s = str.Split(new char[] { ':' });
+                    command = int.Parse(s[0]);
+                    data = s[1].Substring(0, s[1].Length - 1);
+
+                    //抓住窗口，发送键盘指令，然后进行相应的处理
+                    IntPtr hwndCalc = FindWindow(null, "步态采集");
+                    SetForegroundWindow(hwndCalc);
+                    System.Windows.Forms.SendKeys.SendWait("^3");
+                    //dealCommand(command, data);
+                }
+                catch (Exception ex)
+                {
+                    //AddItem(lst_Receive, e.ToString());
+                    isReceivingMsg = false;
+                    MessageBox.Show("连接失效，请重新连接"+"\n"+"错误为:"+ex.Message);
+                }
+            }
+
+            ns.Close();
+            client.Close();
+            listener.Stop();
+            Flag2 = 0;
+            
+            //alertdialog 
+            //
+            //
+
+        }
+
+        
+        //处理指令
+        public void dealCommand()
+        {
+            switch (command)
+            {
+                    //开始录像
+                case (int)messsageType.START_RECORD:
+                    {
+                        //更新项目号
+                        currentProject = data;
+                        IntPtr hwndCalc = FindWindow(null, "步态采集");
+                        SetForegroundWindow(hwndCalc);
+                        System.Windows.Forms.SendKeys.SendWait("^1");
+                        addPeopleLog(currentProject+"开始");
+                        //startRecord();
+                    }
+                    break;
+                    //结束录像
+                case (int)messsageType.STOP_RECORD:
+                    {
+                        IntPtr hwndCalc = FindWindow(null, "步态采集");
+                        SetForegroundWindow(hwndCalc);
+                        System.Windows.Forms.SendKeys.SendWait("^2");
+                        addPeopleLog(currentProject + "结束");
+                        //stopRecord();
+                    }
+                    break;
+                    //开始计时
+                case (int)messsageType.START_COUNTING:
+                    {
+
+                        string[] times = data.Split(new char[] { ' ' });
+                        string time = times[1] + ":" + times[2] +":"+ times[3] +":"+ times[4];
+                        start = DateTime.Now;
+                        addPeopleLog(currentProject+"开始计时:"+time);
+                    }
+                    break;
+                    //停止计时
+                case (int)messsageType.STOP_COUNTING:
+                    {
+                        string[] times = data.Split(new char[] { ' ' });
+                        string time = times[1] + ":" + times[2] + ":" + times[3] + ":" + times[4];
+                        end = DateTime.Now;
+                        TimeSpan ts = end.Subtract(start);
+                        addPeopleLog(currentProject + "结束计时:" + time );
+                        addPeopleLog(currentProject + "用时:" + ts.TotalSeconds + "秒");
+                    }
+                    break;
+                    //建立病人文件夹
+                case (int)messsageType.PATIENT_ID:
+                {
+                    peopleID = data;
+                    createPeopleDir();
+                }
+               
+                break;
+            }
+        }
+
+
+        //设定储存目录 
+        public void setStoreDir()
+        {
+            System.Windows.Forms.FolderBrowserDialog df = new System.Windows.Forms.FolderBrowserDialog();
+
+            //设置文件浏览对话框上的描述内容   
+            df.Description = "选择所有xef文件保存的根目录地址";
+
+            //不显示对话框下方的创建新文件夹按钮   
+            df.ShowNewFolderButton = true;
+
+            /*  
+         判断是否已直接输入文件夹目录地址，如果存在则将此值赋于对话框的已选地址，这样就可以让对话框显示您上次选择或添加的目录地址了。  
+            */
+            
+            //显示文件夹对话框，并返回对话框处理结果数值   
+            System.Windows.Forms.DialogResult result = df.ShowDialog();
+            if (result == System.Windows.Forms.DialogResult.OK) //另外一种判断办法 if (df.ShowDialog(this) == DialogResult.OK)   
+            {
+                //将中的数据库目录地址赋于类全局变量数据库根目录   
+                string folderPath = df.SelectedPath;
+                if (folderPath != "")
+                {
+                    rootDir = folderPath;
+
+                }
+            }
+        }
+
+        //创建病人文件夹
+        private void createPeopleDir()
+        {
+            string dir = rootDir;
+            if (peopleID != "")
+            {
+                dir +="\\"+peopleID.ToString();
+                if (!Directory.Exists(dir))
+                    Directory.CreateDirectory(dir);
+                peopleDir = dir;
+                addPeopleLog("建立目录：" + peopleDir);
+            }
+            else 
+                MessageBox.Show("人员ID为空，请重新扫码！" + dir);
+           
+        }
+
+        //添加病人日志
+        private void addPeopleLog(string content)
+        {
+            if (Directory.Exists(peopleDir))
+            {
+                TxtWrite(content, peopleDir + "\\log.txt");
+            }
+            else
+            {
+                MessageBox.Show("病人目录为空,请在手机端重新输入病人号");
+            }
+            //AddItem(lst_Receive, content);
+        }
+
+        /// <summary>
+        /// //true表示正在使用,false没有使用  
+        /// </summary>
+        /// <param name="fileName"></param>
+        /// <returns></returns>
+
+        //发送开始录制的指令
+        private void startRecord()
+        {
+            
+
+            if (!isRecording)
+            {
+                IntPtr hwndCalc = FindWindow(null, "步态采集");
+                SetForegroundWindow(hwndCalc);
+                System.Windows.Forms.SendKeys.SendWait("^1");
+                isRecording = true;
+            }
+
+
+            if (!Directory.Exists(rootDir))
+            {
+                MessageBox.Show("病人目录不存在，请在手机端重新输入病人号！");
+                // return false;
+            }
+
+
+
+        }
+
+        //发送结束录制的指令
+        private bool stopRecord()
+        {
+            if (isRecording)
+            {
+                IntPtr hwndCalc = FindWindow(null, "步态采集");
+                SetForegroundWindow(hwndCalc);
+                System.Windows.Forms.SendKeys.SendWait("^2");
+            }
+            isRecording = false;
+
+            return true;
+        }
+
+        //录制xef文件
+        public void StartRecordClip(object filePath)
+        {
+            KStudioClient client;
+            KStudioEventStreamSelectorCollection streamCollection;
+            KStudioRecording recording;
+            try
+            {
+                using (client = KStudio.CreateClient())
+                {
+                    client.ConnectToService();
+                    streamCollection = new KStudioEventStreamSelectorCollection();
+                    streamCollection.Add(KStudioEventStreamDataTypeIds.Ir);
+                    streamCollection.Add(KStudioEventStreamDataTypeIds.Depth);
+                    streamCollection.Add(KStudioEventStreamDataTypeIds.Body);
+                    streamCollection.Add(KStudioEventStreamDataTypeIds.BodyIndex);
+                    //streamCollection.Add(KStudioEventStreamDataTypeIds.UncompressedColor);
+                    using (recording = client.CreateRecording((string)filePath, streamCollection))
+                    {
+
+                        recording.Start();
+                        while (recording.State == KStudioRecordingState.Recording)
+                        {
+                            //Flag为1时调出循环，结束录像
+                            if (Flag == 1)
+                                break;
+                        }
+                        if (recording.State == KStudioRecordingState.Error)
+                        {
+                            throw new InvalidOperationException("Error: Recording failed!");
+                        }
+                        recording.Stop();
+                        recording.Dispose();
+
+                    }
+                    client.DisconnectFromService();
+                    client.Dispose();
+                    Flag = 0;
+
+                }
+            }
+            catch (InvalidOperationException ex)
+            {
+                Flag = 0;
+                Flag1 = 1;
+                MessageBox.Show("录像异常,错误对象为:"+ex.Source+"\n错误为:"+ex.Message);
+            }
+            catch (AccessViolationException ex)
+            {
+                Flag = 0;
+                Flag1 = 1;
+                MessageBox.Show("录像异常,错误对象为:" + ex.Source + "\n错误为:" + ex.Message );
+            }
+            catch (Exception ex)
+            {
+                Flag = 0;
+                Flag1 = 1;
+                MessageBox.Show("录像异常,错误对象为:" + ex.Source + "\n错误为:" + ex.Message );
+            }
+            catch
+            {
+                Flag = 0;
+                Flag1 = 1;
+            }
+        }
+
+
+
+        //停止录像
+        public  void StopRecordClip()
+        {
+
+            if (Flag1 != 1)
+            {
+                //Flag为1调出循环，停止录像
+                Flag = 1;
+            }
+            else
+            {
+                Flag1 = 0;
+            }
+
+            /*
+            Mutex mutex = new Mutex(false);
+            mutex.WaitOne();
+            if (RecordClient != null)
+            {
+                if (recording != null)
+                {
+                    if (recording.State == KStudioRecordingState.Recording)
+                    {
+                        recording.Stop();
+                        recording.Dispose();
+                        recording = null;
+                    }
+                }
+                //Thread.Sleep(00);
+                RecordClient.DisconnectFromService();
+                RecordClient.Dispose();
+                RecordClient = null;
+                //System.Windows.Forms.MessageBox.Show("录像完成");
+            }
+            
+            mutex.ReleaseMutex();
+             * */
+        }
+
+
+        //回放xef文件
+        public void PlaybackClip(object filePath)
+        {
+            //Flag3 = 1;
+            //ConnectplaybackClient();
+            try
+            {
+                //创建回放类
+                playback = playbackClient.CreatePlayback((string)filePath);
+                Console.WriteLine(playback.State);
+                Console.WriteLine(playback.Duration);
+                //playback = playbackClient.CreatePlayback((string)filePath);
+                playback.LoopCount = 0;
+                playback.Start();
+            }
+            catch (Exception ex)
+            {
+                playback = null;
+                Console.WriteLine(ex.Message);
+            }
+            
+           
+            /*
+            while (playback.State == KStudioPlaybackState.Playing || playback.State == KStudioPlaybackState.Paused)
+            {
+                //Thread.Sleep(500);
+            }
+
+            if (playback.State == KStudioPlaybackState.Error)
+            {
+                throw new InvalidOperationException("Error: Playback failed!");
+            }
+
+            if (playback.State == KStudioPlaybackState.Stopped)
+            {
+                Console.WriteLine(playback.CurrentRelativeTime);
+                //PlayClient.DisconnectFromService();
+                Flag3 = 0;
+                System.Windows.Forms.MessageBox.Show("播放结束");
+            }
+            **/
+                
+        }
+        
+        //暂停xef文件回放
+        public void PlaybackPauseClip()
+        {
+            try
+            {
+                if (playback != null)
+                {
+                    if (playback.State == KStudioPlaybackState.Playing )
+                        playback.Pause();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+            
+        }
+
+        //从暂停中回放xef
+        public void PlaybackResumeClip()
+        {
+
+            try
+            {
+                if (playback != null)
+                {
+                    if (playback.State == KStudioPlaybackState.Paused)
+                        playback.Resume();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+            
+        }
+
+        //移动xef文件至某一点
+        public void PlaybackMoveToClick(object time)
+        {
+            TimeSpan t1 = (TimeSpan)time;
+
+            //PlaybackPauseClip();
+            if (playback != null)
+            {
+
+                try
+                {
+                    if (playback.State == KStudioPlaybackState.Paused)
+                    {
+                        //判断载入的时间是否超过xef的时间长度
+                        if (t1.CompareTo(playback.Duration) >= 0)
+                        {
+                            MessageBox.Show("跳转时间超过了xef文件时间长度");
+                        }
+                        else
+                        {
+                            playback.SeekByRelativeTime(t1);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.Message);
+                }
+                
+                //playback.CurrentRelativeTime = time;
+                //time.CompareTo()
+            }
+            //PlaybackResumeClip();
+            //playback.SeekByRelativeTime(time);
+        }
+
+        //生成log文件
+        private void TxtWrite(string strToWrite, string filename)
+        {
+            DateTime now = DateTime.Now;
+            FileStream fs = new FileStream(filename, FileMode.OpenOrCreate, FileAccess.Write);
+            StreamWriter sw = new StreamWriter(fs);
+            try
+            {
+                sw.BaseStream.Seek(0, SeekOrigin.End);
+                //sw.WriteLine("当前时间:"+DateTime.Now.ToString("hh:mm:ss")+":"+now.ToString() + ":" + now.ToString("fff") + ": " + strToWrite);
+                sw.WriteLine(now.ToString() + ":" + now.ToString("fff") + ": " + strToWrite);
+                sw.Close();
+            }
+            catch (Exception ex)
+            {
+                sw.Close();
+                MessageBox.Show("文件写入异常，请重新录制此项\n"+"错误为:"+ex.Message);
+            }
+            
+        }
+
+        //读单独的切分文件
+        public String txtRead(String path)
+        {
+            StreamReader sr = new StreamReader(path, Encoding.Default);
+            String line = "";
+            String result = "";
+            while ((line = sr.ReadLine()) != null)
+            {
+                //Console.WriteLine(line);
+                result += line;
+            }
+
+            String[] s = result.Split(new char[] { ' ' });
+            result = s[79];
+            double d = Double.Parse(result);
+            //Console.WriteLine(result);
+            return result;
+        }
+
+        
+    }
+}
