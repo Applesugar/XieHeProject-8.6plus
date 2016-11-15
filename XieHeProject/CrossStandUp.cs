@@ -103,24 +103,68 @@ namespace XieHeProject
                         endPoint.Add(min);
                     }
                 }
-                double[] deltaHeightUp = new double[startPoint.Count];
-                double[] deltaTimeUp = new double[startPoint.Count];
-                double[] CSUVelocityUp = new double[startPoint.Count];
-                double[] CSUAccelerationUp = new double[startPoint.Count];
+                double[] deltaHeightUp = new double[startPoint.Count - 1];
+                double[] deltaTimeUp = new double[startPoint.Count - 1];
+                double[] CSUVelocityUp = new double[startPoint.Count - 1];
+                double[] CSUAccelerationUp = new double[startPoint.Count - 1];
                 double[] deltaHeightDown = new double[startPoint.Count];
                 double[] deltaTimeDown = new double[startPoint.Count];
                 double[] CSUVelocityDown = new double[startPoint.Count];
                 double[] CSUAccelerationDown = new double[startPoint.Count];
                 for (int i = 0; i < startPoint.Count; ++i)
                 {
-                    deltaHeightUp[i] = startPoint[i][0] - endPoint[i][0];
-                    deltaTimeUp[i] = (CSUtime[Convert.ToInt32(startPoint[i][1])] - CSUtime[Convert.ToInt32(endPoint[i][1])]).TotalSeconds;
+                    deltaHeightDown[i] = startPoint[i][0] - endPoint[i][0];  //should be positive
+                    Debug.WriteLine("deltaHeightDown = " + deltaHeightDown[i]);
+                    deltaTimeDown[i] = -(CSUtime[Convert.ToInt32(startPoint[i][1])] - CSUtime[Convert.ToInt32(endPoint[i][1])]).TotalSeconds;  //should be positive
+                    Debug.WriteLine("deltaTimeDown = " + deltaTimeDown[i]);
+                    CSUVelocityDown[i] = deltaHeightDown[i] / deltaTimeDown[i];
+                    CSUAccelerationDown[i] = deltaHeightDown[i] / Math.Pow(deltaTimeDown[i], 2);
+                }
+                BingRen.CSUVelocityDown = CSUVelocityDown.Average();
+                BingRen.CSUAccelerationDown = CSUAccelerationDown.Average();
+                BingRen.CSUVelocityDown_variance = CalculateVariance(CSUVelocityDown);
+                BingRen.CSUAccelerationDown_variance = CalculateVariance(CSUAccelerationDown);
+                for (int i = 0; i < startPoint.Count - 1; ++i)
+                {
+                    deltaHeightUp[i] = startPoint[i + 1][0] - endPoint[i][0];  //should be positive
+                    Debug.WriteLine("deltaHeightUp = " + deltaHeightUp[i]);
+                    deltaTimeUp[i] = (CSUtime[Convert.ToInt32(startPoint[i + 1][1])] - CSUtime[Convert.ToInt32(endPoint[i][1])]).TotalSeconds;  //should be positive
+                    Debug.WriteLine("deltaTimeDown = " + deltaTimeDown[i]);
                     CSUVelocityUp[i] = deltaHeightUp[i] / deltaTimeUp[i];
                     CSUAccelerationUp[i] = deltaHeightUp[i] / Math.Pow(deltaTimeUp[i], 2);
                 }
                 BingRen.CSUVelocityUp = CSUVelocityUp.Average();
                 BingRen.CSUAccelerationUp = CSUAccelerationUp.Average();
+                BingRen.CSUVelocityUp_variance = CalculateVariance(CSUVelocityUp);
+                BingRen.CSUAccelerationUp_variance = CalculateVariance(CSUAccelerationUp);
 
+                double[] deltaHeightOneCircle = new double[startPoint.Count - 1];
+                double[] deltaTimeOneCircle = new double[startPoint.Count - 1];
+                double[] CSUVelocityOneCircle = new double[startPoint.Count - 1];
+                double[] CSUAccelerationOneCircle = new double[startPoint.Count - 1];
+                for(int i = 0;i < startPoint.Count - 1;++i)
+                {
+                    deltaHeightOneCircle[i] = deltaHeightUp[i] + deltaHeightDown[i + 1];
+                    deltaTimeOneCircle[i] = deltaTimeUp[i] + deltaTimeDown[i + 1];
+                    CSUVelocityOneCircle[i] = deltaHeightOneCircle[i] / deltaTimeOneCircle[i];
+                    CSUAccelerationOneCircle[i] = deltaHeightOneCircle[i] / Math.Pow(deltaTimeOneCircle[i], 2);
+                }
+                BingRen.CSUVelocityOneCircle = CSUVelocityOneCircle.Average();
+                BingRen.CSUAccelerationOneCircle = CSUAccelerationOneCircle.Average();
+                BingRen.CSUVelocityOneCircle_variance = CalculateVariance(CSUVelocityOneCircle);
+                BingRen.CSUAccelerationOneCircle_variance = CalculateVariance(CSUAccelerationOneCircle);
+
+                double deltaHeightWholeAction = 0;
+                double deltaTimeWholeAction = 0;
+                for(int i = 0;i < startPoint.Count - 1;++i)
+                {
+                    deltaHeightWholeAction += deltaHeightUp[i] + deltaHeightDown[i];
+                    deltaTimeWholeAction += deltaTimeUp[i] + deltaTimeDown[i];
+                }
+                deltaHeightWholeAction += deltaHeightDown[startPoint.Count - 1];
+                deltaTimeWholeAction += deltaTimeDown[startPoint.Count - 1];
+                BingRen.CSUVelocityWholeAction = deltaHeightWholeAction / deltaTimeWholeAction;
+                BingRen.CSUAccelerationWholeAction = deltaHeightWholeAction / Math.Pow(deltaTimeWholeAction, 2);
             }
             catch
             {
@@ -130,7 +174,11 @@ namespace XieHeProject
             }
             finally
             {
-                Debug.WriteLine(BingRen.CSUVelocityUp + " " + BingRen.CSUVelocityDown + " " + BingRen.CSUAccelerationUp + " " + BingRen.CSUAccelerationDown);
+                Debug.WriteLine("Vup, Vdown, Aup, Adown" + BingRen.CSUVelocityUp + " " + BingRen.CSUVelocityDown + " " + BingRen.CSUAccelerationUp + " " + BingRen.CSUAccelerationDown);
+                Debug.WriteLine("V_onecircle = " + BingRen.CSUVelocityOneCircle);
+                Debug.WriteLine("V_wholeaction = " + BingRen.CSUVelocityWholeAction);
+                Debug.WriteLine("A_onecircle = " + BingRen.CSUAccelerationOneCircle);
+                Debug.WriteLine("A_wholeaction = " + BingRen.CSUAccelerationWholeAction);
                 ClearCSUData();
             }
         }

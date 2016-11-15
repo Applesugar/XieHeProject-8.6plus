@@ -115,7 +115,7 @@ namespace XieHeProject
             }
             finally
             {
-                Debug.WriteLine(BingRen.NSUVelocityUp + " " + BingRen.NSUVelocityDown + " " + BingRen.NSUAccelerationUp + " " + BingRen.NSUAccelerationDown);
+                Debug.WriteLine("Vup,Vdown,Aup,Adown" + BingRen.NSUVelocityUp + " " + BingRen.NSUVelocityDown + " " + BingRen.NSUAccelerationUp + " " + BingRen.NSUAccelerationDown);
                 ClearNSUData();
             }
         }
