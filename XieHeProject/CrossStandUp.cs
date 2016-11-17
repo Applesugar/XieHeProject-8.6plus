@@ -116,7 +116,9 @@ namespace XieHeProject
                     deltaHeightDown[i] = startPoint[i][0] - endPoint[i][0];  //should be positive
                     Debug.WriteLine("deltaHeightDown = " + deltaHeightDown[i]);
                     deltaTimeDown[i] = -(CSUtime[Convert.ToInt32(startPoint[i][1])] - CSUtime[Convert.ToInt32(endPoint[i][1])]).TotalSeconds;  //should be positive
+
                     Debug.WriteLine("deltaTimeDown = " + deltaTimeDown[i]);
+
                     CSUVelocityDown[i] = deltaHeightDown[i] / deltaTimeDown[i];
                     CSUAccelerationDown[i] = deltaHeightDown[i] / Math.Pow(deltaTimeDown[i], 2);
                 }
@@ -129,7 +131,9 @@ namespace XieHeProject
                     deltaHeightUp[i] = startPoint[i + 1][0] - endPoint[i][0];  //should be positive
                     Debug.WriteLine("deltaHeightUp = " + deltaHeightUp[i]);
                     deltaTimeUp[i] = (CSUtime[Convert.ToInt32(startPoint[i + 1][1])] - CSUtime[Convert.ToInt32(endPoint[i][1])]).TotalSeconds;  //should be positive
+
                     Debug.WriteLine("deltaTimeDown = " + deltaTimeDown[i]);
+
                     CSUVelocityUp[i] = deltaHeightUp[i] / deltaTimeUp[i];
                     CSUAccelerationUp[i] = deltaHeightUp[i] / Math.Pow(deltaTimeUp[i], 2);
                 }
