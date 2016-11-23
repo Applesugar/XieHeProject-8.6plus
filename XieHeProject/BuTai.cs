@@ -611,7 +611,7 @@ namespace XieHeProject
 
 
             //暂时不用
-            /*
+            
             //生成报告
             try
             {
@@ -621,14 +621,14 @@ namespace XieHeProject
                     createExcel();
                 }
                 //添加内容
-                addExcel(BingRen.StepSpeed, BingRen.StepWidth, BingRen.LeftstepHeight, BingRen.RightstepHeight, BingRen.LeftstepLength, BingRen.RightstepLength, BingRen.StepCount);
+                addExcel();
 
             }
             catch (Exception ex)
             {
                 Console.WriteLine(ex.Message);
             }
-            **/
+            
             //清理步态数据
             clearData();
             
@@ -740,6 +740,30 @@ namespace XieHeProject
             row.CreateCell(22).SetCellValue("z角方差");
             row.CreateCell(23).SetCellValue("右脚变异度");
             row.CreateCell(24).SetCellValue("左脚变异度");
+            row.CreateCell(25).SetCellValue("自然状态起立速度");
+            row.CreateCell(26).SetCellValue("自然状态坐下速度");
+            row.CreateCell(27).SetCellValue("自然状态起立加速度");
+            row.CreateCell(28).SetCellValue("自然状态坐下加速度");
+            row.CreateCell(29).SetCellValue("交叉起立速度均值");
+            row.CreateCell(30).SetCellValue("交叉起立速度方差");
+            row.CreateCell(31).SetCellValue("交叉起立加速度均值");
+            row.CreateCell(32).SetCellValue("交叉起立加速度方差");
+            row.CreateCell(33).SetCellValue("交叉坐下速度均值");
+            row.CreateCell(34).SetCellValue("交叉坐下速度方差");
+            row.CreateCell(35).SetCellValue("交叉坐下加速度均值");
+            row.CreateCell(36).SetCellValue("交叉坐下加速度方差");
+            row.CreateCell(37).SetCellValue("交叉坐周期速度均值");
+            row.CreateCell(38).SetCellValue("交叉坐周期速度方差");
+            row.CreateCell(38).SetCellValue("交叉坐周期加速度均值");
+            row.CreateCell(40).SetCellValue("交叉坐周期加速度方差");
+            row.CreateCell(41).SetCellValue("交叉坐整体速度均值");
+            row.CreateCell(42).SetCellValue("交叉坐整体加速度均值");
+//            row.CreateCell(43).SetCellValue("");
+//            row.CreateCell(44).SetCellValue("");
+//            row.CreateCell(45).SetCellValue("");
+//            row.CreateCell(46).SetCellValue("");
+
+
 
             wk.Write(fs);
             wk.Close();
@@ -784,6 +808,26 @@ namespace XieHeProject
             row1.CreateCell(22).SetCellValue(BingRen.ZD);
             row1.CreateCell(23).SetCellValue(BingRen.LeftFootAberrance);
             row1.CreateCell(24).SetCellValue(BingRen.RightFootAberrance);
+            row1.CreateCell(25).SetCellValue(BingRen.NSUVelocityUp);
+            row1.CreateCell(26).SetCellValue(BingRen.NSUVelocityDown);
+            row1.CreateCell(27).SetCellValue(BingRen.NSUAccelerationUp);
+            row1.CreateCell(28).SetCellValue(BingRen.NSUAccelerationDown);
+            row1.CreateCell(29).SetCellValue(BingRen.CSUVelocityUp);
+            row1.CreateCell(30).SetCellValue(BingRen.CSUVelocityUp_variance);
+            row1.CreateCell(31).SetCellValue(BingRen.CSUAccelerationUp);
+            row1.CreateCell(32).SetCellValue(BingRen.CSUAccelerationUp_variance);
+            row1.CreateCell(33).SetCellValue(BingRen.CSUVelocityDown);
+            row1.CreateCell(34).SetCellValue(BingRen.CSUVelocityDown_variance);
+            row1.CreateCell(35).SetCellValue(BingRen.CSUAccelerationDown);
+            row1.CreateCell(36).SetCellValue(BingRen.CSUAccelerationDown_variance);
+            row1.CreateCell(37).SetCellValue(BingRen.CSUVelocityOneCircle);
+            row1.CreateCell(38).SetCellValue(BingRen.CSUVelocityOneCircle_variance);
+            row1.CreateCell(39).SetCellValue(BingRen.CSUAccelerationOneCircle);
+            row1.CreateCell(40).SetCellValue(BingRen.CSUAccelerationOneCircle_variance);
+            row1.CreateCell(41).SetCellValue(BingRen.CSUVelocityWholeAction);
+            row1.CreateCell(42).SetCellValue(BingRen.CSUAccelerationWholeAction);
+
+
             fs1.Flush();
             wk.Write(fs1);
             wk.Close();
